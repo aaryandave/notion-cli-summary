@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 import requests
 from notion_client import Client
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 class NotionClient:
     """Class to create a NotionClient object to interact with the Notion API."""
@@ -72,6 +72,7 @@ class NotionClient:
                     }
                 }
             )
+
             return response.get("results")
         except Exception as e:
             logging.error("Error fetching recent items: {%s}", e)
@@ -92,6 +93,12 @@ class NotionClient:
             response = self.database.databases.query(
                 **{
                     "database_id": self.database_id,
+                    "sorts": [
+                        {
+                            "property": "Date",
+                            "direction": "ascending"
+                        }
+                    ],
                     "filter": {
                         "and": [
                             {
@@ -115,6 +122,35 @@ class NotionClient:
             logging.error("Error fetching today's items: {%s}", e)
             return None
 
+    def _parse_date(self, date_str: str) -> datetime:
+        """
+        Parse the date string into a datetime object.
+
+        Args:
+            date_str (str): Date string to parse
+
+        Returns:
+            datetime: Datetime object
+        """
+        # Remove the timezone part if it exists
+        if date_str.endswith('Z'):
+            date_str = date_str[:-1]
+        elif '+' in date_str:
+            date_str = date_str.split('+')[0]
+        elif '-' in date_str and date_str.count('-') > 2:  # Handles timezone offsets like -04:00
+            date_str = date_str.rsplit('-', 1)[0]
+
+        try:
+            # Try to parse with fractional seconds
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
+        except ValueError:
+            try:
+                # Try to parse without fractional seconds
+                return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                # If it fails, parse without time component
+                return datetime.strptime(date_str, "%Y-%m-%d")
+
     def get_page_strings(self, json_data: Optional[List[Dict[str, Any]]]) -> List[str]:
         """
         Get the page names from the JSON data.
@@ -132,7 +168,7 @@ class NotionClient:
         for item in json_data:
             try:
                 page_name = item["properties"]["Name"]["title"][0]["plain_text"]
-                page_date = item["properties"]["Date"]["date"]["start"]
+                page_date = self._parse_date(item["properties"]["Date"]["date"]["start"])
                 page_type = item["properties"]["Type"]["select"]["name"]
                 class_id = item["properties"]["Class"]["relation"][0]["id"]
                 class_name = self.get_name_from_id(class_id)

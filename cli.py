@@ -4,6 +4,7 @@ import json
 import argparse
 from notion_db_client import NotionClient
 from fuzzy_search import fuzzy_search
+from calendar_client import get_days_events, get_event_strings
 
 def print_results(results: list[tuple]) -> None:
     """Print the results of the fuzzy search in a nice, colored format
@@ -16,7 +17,7 @@ def print_results(results: list[tuple]) -> None:
     for result in results:
         print(f"- {result[0]} (relevance: {result[1]})")
 
-def print_today(tasks: list[str]) -> None:
+def print_today_tasks(tasks: list[str]) -> None:
     """Print the tasks due today
 
     Args:
@@ -26,6 +27,19 @@ def print_today(tasks: list[str]) -> None:
     print("---------------")
     for task in tasks:
         print(f"- {task}")
+    print()
+
+def print_today_events(events: list[str]) -> None:
+    """Print the events for today
+
+    Args:
+        events (list[str]): List of the events for today
+    """
+    print("Events for today:")
+    print("---------------")
+    for event in events:
+        print(f"- {event}")
+    print()
 
 def main() -> None:
     """Main function to run the fuzzy search
@@ -53,7 +67,15 @@ def main() -> None:
     if args.today:
         tasks = client.get_today()
         task_strings = client.get_page_strings(tasks)
-        print_today(task_strings)
+        print_today_tasks(task_strings)
+
+        calendar_urls = config_items["CALENDAR_URLS"]
+        all_event_strings = []
+        for url in calendar_urls:
+            today_events = get_days_events(url)
+            today_event_strings = get_event_strings(today_events)
+            all_event_strings.extend(today_event_strings)
+        print_today_events(all_event_strings)
 
 if __name__ == "__main__":
     main()
